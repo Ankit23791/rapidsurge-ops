@@ -3,6 +3,11 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime, date
+import pytz
+IST = pytz.timezone('Asia/Kolkata')
+
+def now_ist():
+    return datetime.now(IST)
 import io
 from supabase import create_client, Client
 
@@ -123,7 +128,7 @@ def show_sidebar():
 
 def submit_entry(team, fields):
     row = {"date": date.today().strftime("%Y-%m-%d"),
-           "time": datetime.now().strftime("%H:%M:%S"),
+           "time": now_ist().strftime("%H:%M:%S"),
            "team": team, "person": st.session_state.name}
     row.update({k.lower().replace(" ","_").replace("(","").replace(")","").replace("/","_"): str(v) for k,v in fields.items()})
     save_row(row)
@@ -137,7 +142,7 @@ def timer_button(key):
     if st.session_state[sk] is None:
         st.info("👆 Click START TIMER when you begin")
         if st.button("▶️ Start Timer", key=f"btn_{key}", type="primary"):
-            st.session_state[sk] = datetime.now().strftime("%H:%M:%S")
+            st.session_state[sk] = now_ist().strftime("%H:%M:%S")
             st.rerun()
         return None
     else:
@@ -147,7 +152,7 @@ def timer_button(key):
 def calc_duration(start_str):
     try:
         s = datetime.strptime(start_str, "%H:%M:%S")
-        e = datetime.now()
+        e = now_ist()
         return int((e.replace(year=e.year,month=e.month,day=e.day) - s.replace(year=e.year,month=e.month,day=e.day)).total_seconds() / 60)
     except:
         return 0
@@ -156,7 +161,7 @@ def save_image(file, bill_no):
     if file is None:
         return ""
     try:
-        name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{bill_no}.jpg"
+        name = f"{now_ist().strftime('%Y%m%d_%H%M%S')}_{bill_no}.jpg"
         file_bytes = file.getbuffer().tobytes()
         supabase.storage.from_("bill-images").upload(
             path=name,
@@ -189,7 +194,7 @@ def form_purchase():
             sku   = st.number_input("No. of SKUs", min_value=0, step=1)
             mode  = st.selectbox("Mode of Order", ["Through Call","Pharma Rack","Excel Send"], key="p_mode")
         if st.form_submit_button("Submit ✅", type="primary", use_container_width=True):
-            end = datetime.now().strftime("%H:%M:%S")
+            end = now_ist().strftime("%H:%M:%S")
             submit_entry("Purchase", {"Distributor":distributor,"Order Type":order_type,
                 "No of SKUs":sku,"Mode":mode,"Start Time":start,
                 "End Time":end,"Duration mins":calc_duration(start)})
@@ -257,7 +262,7 @@ def form_stockcheck():
         remarks = st.text_input("Remarks")
 
         if st.form_submit_button("Submit ✅", type="primary", use_container_width=True):
-            end_time = datetime.now().strftime("%H:%M:%S")
+            end_time = now_ist().strftime("%H:%M:%S")
             img_name = save_image(bill_img, selected_bill.get('bill_number','')) if bill_img else ""
 
             # Update SAME row instead of creating new one
@@ -269,7 +274,7 @@ def form_stockcheck():
                     "near_expiry": str(near_expiry),
                     "shortage": str(shortage),
                     "wrong_batch": str(wrong_batch),
-                    "stock_check_time": datetime.now().strftime("%H:%M:%S"),
+                    "stock_check_time": now_ist().strftime("%H:%M:%S"),
                     "stock_check_by": st.session_state.name,
                     "stock_check_duration": str(calc_duration(start)),
                     "stock_check_image": img_name,
@@ -308,7 +313,7 @@ def form_billupload():
             if not bill_no:
                 st.error("Please fill Bill Number!")
             else:
-                warehouse_time = datetime.now().strftime("%H:%M:%S")
+                warehouse_time = now_ist().strftime("%H:%M:%S")
                 img_name = save_image(bill_img, bill_no) if bill_img else ""
                 submit_entry("Bill Upload", {
                     "Distributor": distributor,
@@ -367,7 +372,7 @@ def form_placement():
         remarks = st.text_input("Remarks")
 
         if st.form_submit_button("Submit ✅", type="primary", use_container_width=True):
-            end_time = datetime.now().strftime("%H:%M:%S")
+            end_time = now_ist().strftime("%H:%M:%S")
             try:
                 update_data = {
                     "placement_status": "Placed",
@@ -485,11 +490,11 @@ def form_delivery():
             remarks = st.text_input("Remarks")
 
             if st.form_submit_button("▶️ Start Trip", type="primary", use_container_width=True):
-                start_time = datetime.now().strftime("%I:%M %p")
+                start_time = now_ist().strftime("%I:%M %p")
                 # Save to Supabase immediately
                 row = {
                     "date": date.today().strftime("%Y-%m-%d"),
-                    "time": datetime.now().strftime("%H:%M:%S"),
+                    "time": now_ist().strftime("%H:%M:%S"),
                     "team": "Delivery",
                     "person": st.session_state.name,
                     "location_a": location_a,
@@ -506,19 +511,19 @@ def form_delivery():
                 try:
                     result = supabase.table("ops_entries").insert(row).execute()
                     st.session_state.delivery_trip_id = result.data[0]['id']
-                    st.session_state.delivery_start = datetime.now()
+                    st.session_state.delivery_start = now_ist()
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error: {e}")
     else:
         # Trip is in progress
-        elapsed = int((datetime.now() - st.session_state.delivery_start).total_seconds() / 60)
+        elapsed = int((now_ist() - st.session_state.delivery_start).total_seconds() / 60)
         st.success(f"⏱️ Trip in progress — {elapsed} minutes elapsed")
         st.info("Click Submit when activity is complete")
 
         if st.button("Submit ✅ — Complete This Activity", type="primary", use_container_width=True):
-            end_time = datetime.now().strftime("%I:%M %p")
-            duration = int((datetime.now() - st.session_state.delivery_start).total_seconds() / 60)
+            end_time = now_ist().strftime("%I:%M %p")
+            duration = int((now_ist() - st.session_state.delivery_start).total_seconds() / 60)
             try:
                 supabase.table("ops_entries")\
                     .update({
